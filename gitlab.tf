@@ -120,6 +120,54 @@ resource "aws_security_group" "gitlab_allow_connection" {
 
 }
 
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#DEPLOY LOAD BALANCER
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+resource "aws_elb" "gitlab_loadbalancer" {
+    name = "GitLab-ELB"
+    security_groups = [aws_security_group.elb_allow_connection.id]
+    availability_zones = var.available_zone
+
+    health_check {
+        healthy_threshold = 2
+        interval = 30
+        target = "HTTP:${var.gitlab_port}/"
+        timeout = 3
+        unhealthy_threshold = 2
+    }
+
+    # This adds a listener for incoming HTTP requests.
+    listener {
+        instance_port = var.gitlab_port
+        instance_protocol = "http"
+        lb_port = var.balancer_port
+        lb_protocol = "http"
+    }
+}
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#DEPLOY SECURITY GROUP - CONTROLS WHAT GO IN & OUT IN LOAD BALANCER
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+resource "aws_security_group" "elb_allow_connection" {
+    name = "GitLab ELB - Security Group"
+
+    # Allow all outbound
+    egress {
+        from_port = 0
+        protocol = "-1"
+        to_port = 0
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    # Inbound HTTP from anywhere
+    ingress {
+        from_port = var.balancer_port
+        protocol = "tcp"
+        to_port = var.balancer_port
+        cidr_blocks = ["0.0.0.0/24"]
+    }
+}
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #DEPLOY EC2 GitLab INSTANCE
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -128,5 +176,3 @@ resource "aws_security_group" "gitlab_allow_connection" {
 #Referencia:
 #https://github.com/gruntwork-io/intro-to-terraform
 #https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d
-
-

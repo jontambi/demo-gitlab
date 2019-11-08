@@ -19,3 +19,11 @@ variable "available_zone" {
   type = "list"
   default = ["us-east-1a", "us-east-1b"]
 }
+
+variable "balancer_port" {
+  default = 80
+}
+
+variable "gitlab_port" {
+  default = 80
+}
