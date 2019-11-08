@@ -1,6 +1,6 @@
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #DEPLOY EC2 GitLab INSTANCE
-#This template runs a simple "Apache Tomcat" webserver on a single EC2 Instance
+#This template runs HA-GitLab on a EC2 Instance
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,7 +17,7 @@ terraform {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 provider "aws" {
-    region = "us-east-2"
+    region = var.aws_region
 }
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -46,38 +46,23 @@ resource "aws_internet_gateway" "gateway_gitlab" {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DEPLOY SUBNET
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-resource "aws_subnet" "subnet_pub_east_1a" {
-    cidr_block = "172.16.10.0/24"
+resource "aws_subnet" "subnet_public" {
+    count = length(var.subnet_cidr_public)
+    cidr_block = element(var.subnet_cidr_public, count.index)
     vpc_id = aws_vpc.vpc_gitlab.id
-    availability_zone = "us-east-1a"
+    availability_zone = element(var.available_zone, count.index)
     tags = {
-        Name = "gitlab_public_172.16.10.0"
+        Name = "gitlab_public_${count.index+1}"
     }
 }
 
-resource "aws_subnet" "subnet_priv_east_1a" {
-    cidr_block = "172.16.30.0/24"
+resource "aws_subnet" "subnet_private" {
+    count = length(var.subnet_cidr_private)
+    cidr_block = element(var.subnet_cidr_private, count.index)
     vpc_id = aws_vpc.vpc_gitlab.id
-    availability_zone = "us-east-1a"
-    tags {
-        Name = "gitlab_private_172.16.30.0"
-    }
-}
-
-resource "aws_subnet" "subnet_public_east_2a" {
-    cidr_block = "172.16.20.0/24"
-    vpc_id = aws_vpc.vpc_gitlab.id
-    availability_zone = "us-east-2a"
+    availability_zone = element(var.available_zone, count.index )
     tags = {
-        Name = "gitlab_public_172.16.20.0"
-    }
-}
-
-resource "aws_subnet" "subnet_priv_east_2a" {
-    cidr_block = "172.16.40.0/24"
-    vpc_id = aws_vpc.vpc_gitlab.id
-    tags = {
-        Name = "gitlab_public_172.16.40.0"
+        Name = "gitlab_private_${count.index+1}"
     }
 }
 
@@ -90,41 +75,58 @@ resource "aws_route_table" "default_route" {
         cidr_block = "0.0.0.0/0"
         gateway_id = aws_internet_gateway.gateway_gitlab.id
     }
-    tags {
-        Name = "Default Route - GitLab"
+    tags = {
+        Name = "GitLab-Public"
     }
 }
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#DEPLOY EC2 GitLab INSTANCE
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-resource "aws_instance" "gitlab" {
-    ami = ""
-    instance_type = ""
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#DEPLOY ROUTE TABLE ASSOCIATION
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+resource "aws_route_table_association" "gitlab_public" {
+    count = length(var.subnet_cidr_public)
+    subnet_id = element(aws_subnet.subnet_public.*.id, count.index)
+    route_table_id = aws_route_table.default_route.id
 }
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#DEPLOY SECURITY GROUP
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+resource "aws_security_group" "gitlab_allow_connection" {
+    name = "Security Group - GitLab"
+    description = "Allow connection SSH HTTP & HTTPS"
+    vpc_id = aws_vpc.vpc_gitlab.id
 
+    ingress {
+        from_port = 22
+        protocol = "tcp"
+        to_port = 22
+        cidr_blocks = ["0.0.0.0/0"]
+    }
 
+    ingress {
+        from_port = 80
+        protocol = "tcp"
+        to_port = 80
+        cidr_blocks = ["0.0.0.0/0"]
+    }
 
+    ingress {
+        from_port = 443
+        protocol = "tcp"
+        to_port = 443
+        cidr_blocks = ["0.0.0.0/0"]
+    }
 
-
+}
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #DEPLOY EC2 GitLab INSTANCE
-#This template runs a simple "Apache Tomcat" webserver on a single EC2 Instance
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
-
-
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#DEPLOY EC2 GitLab INSTANCE
-#This template runs a simple "Apache Tomcat" webserver on a single EC2 Instance
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
-Referencia:
-https://github.com/gruntwork-io/intro-to-terraform
-https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d
+#Referencia:
+#https://github.com/gruntwork-io/intro-to-terraform
+#https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d
 
 
