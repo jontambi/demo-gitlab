@@ -171,6 +171,35 @@ resource "aws_security_group" "elb_allow_connection" {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #DEPLOY EC2 GitLab INSTANCE
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+resource "aws_autoscaling_group" "gitlab_autoscaling" {
+    launch_configuration = aws_launch_configuration.gitlab_launch.id
+    count = length(var.available_zone)
+    availability_zones = element(var.available_zone, count.index)
+    max_size = 4
+    min_size = 2
+
+    load_balancers = [aws_elb.gitlab_loadbalancer.name]
+    health_check_type = "ELB"
+
+    tag {
+        key = "Name"
+        propagate_at_launch = true
+        value = "GitLab_Autoscaling"
+    }
+}
+
+resource "aws_launch_configuration" "gitlab_launch" {
+    # CentOS 7 img created by Packer Script
+    image_id = ""
+    instance_type = "t2.micro"
+    security_groups = [aws_security_group.gitlab_allow_connection.id]
+
+
+    # Whenever using a launch configuration with an auto scaling group, you must set create_before_destroy = true.
+    lifecycle {
+        create_before_destroy = true
+    }
+}
 
 
 #Referencia:
