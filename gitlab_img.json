@@ -21,6 +21,6 @@
 
   "provisioners": [{
     "type": "shell",
-    "script": "gitlab_installation.sh"
+    "script": "./files/gitlab_installation.sh"
   }]
 }

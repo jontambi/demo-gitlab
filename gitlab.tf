@@ -51,8 +51,9 @@ resource "aws_subnet" "subnet_public" {
     cidr_block = element(var.subnet_cidr_public, count.index)
     vpc_id = aws_vpc.vpc_gitlab.id
     availability_zone = element(var.available_zone, count.index)
+    map_public_ip_on_launch = true
     tags = {
-        Name = "gitlab_public_${count.index+1}"
+        Name = "gitlab_public_${element(var.available_zone, count.index)}"
     }
 }
 
@@ -60,9 +61,10 @@ resource "aws_subnet" "subnet_private" {
     count = length(var.subnet_cidr_private)
     cidr_block = element(var.subnet_cidr_private, count.index)
     vpc_id = aws_vpc.vpc_gitlab.id
-    availability_zone = element(var.available_zone, count.index )
+    availability_zone = element(var.available_zone, count.index)
+    map_public_ip_on_launch = false
     tags = {
-        Name = "gitlab_private_${count.index+1}"
+        Name = "gitlab_private_${element(var.available_zone, count.index)}"
     }
 }
 
@@ -171,33 +173,17 @@ resource "aws_security_group" "elb_allow_connection" {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #DEPLOY EC2 GitLab INSTANCE
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-resource "aws_autoscaling_group" "gitlab_autoscaling" {
-    launch_configuration = aws_launch_configuration.gitlab_launch.id
-    count = length(var.available_zone)
-    availability_zones = element(var.available_zone, count.index)
-    max_size = 4
-    min_size = 2
-
-    load_balancers = [aws_elb.gitlab_loadbalancer.name]
-    health_check_type = "ELB"
-
-    tag {
-        key = "Name"
-        propagate_at_launch = true
-        value = "GitLab_Autoscaling"
-    }
-}
-
-resource "aws_launch_configuration" "gitlab_launch" {
-    # CentOS 7 img created by Packer Script
-    image_id = ""
+resource "aws_instance" "gitlab_server" {
+    count = length(var.subnet_cidr_private)
+    ami = data.aws_ami.latest_gitlab.id
+    availability_zone = element(var.available_zone, count.index)
     instance_type = "t2.micro"
-    security_groups = [aws_security_group.gitlab_allow_connection.id]
     key_name = aws_key_pair.ssh_default.key_name
+    vpc_security_group_ids = [aws_security_group.gitlab_allow_connection.id]
+    subnet_id = aws_subnet.subnet_private[count.index].id
 
-    # Whenever using a launch configuration with an auto scaling group, you must set create_before_destroy = true.
-    lifecycle {
-        create_before_destroy = true
+    tags = {
+        Name = "gitlab_demo_${element(var.available_zone, count.index)}"
     }
 }
 
@@ -210,8 +196,24 @@ resource "aws_key_pair" "ssh_default" {
 }
 
 
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Select Most recent ami GitLab
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+data "aws_ami" "latest_gitlab" {
+    owners = ["179966331834"]
+    most_recent = true
 
+    filter {
+        name = "state"
+        values = ["available"]
+    }
+
+    filter {
+        name = "tag:Name"
+        values = ["gitlab_img"]
+    }
+}
 
 #Referencia:
 #https://github.com/gruntwork-io/intro-to-terraform
-#https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d
+    #https://blog.gruntwork.io/how-to-create-reusable-infrastructure-with-terraform-modules-25526d65f73d
