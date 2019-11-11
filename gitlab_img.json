@@ -1,0 +1,26 @@
+{
+  "builders": [{
+    "type": "amazon-ebs",
+    "source_ami_filter": {
+      "filters": {
+        "virtualization-type": "hvm",
+        "name": "centos7_base_img_*",
+        "root-device-type": "ebs"
+      },
+      "owners": ["179966331834"],
+      "most_recent": true
+    },
+    "instance_type": "t2.micro",
+    "ssh_username": "centos",
+    "ami_name": "gitlab_server_{{timestamp}}",
+    "associate_public_ip_address": true,
+    "tags": {
+      "Name": "gitlab_img"
+    }
+  }],
+
+  "provisioners": [{
+    "type": "shell",
+    "script": "gitlab_installation.sh"
+  }]
+}

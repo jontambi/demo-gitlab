@@ -1,0 +1,22 @@
+{
+  "builders": [{
+    "type": "amazon-ebs",
+    "source_ami": "ami-02eac2c0129f6376b",
+    "instance_type": "t2.micro",
+    "ssh_username": "centos",
+    "ami_name": "centos7_base_img_{{timestamp}}",
+    "tags": {
+      "Name": "Image_base_Centos7"
+    }
+  }],
+
+  "provisioners": [{
+    "type": "shell",
+    "inline": [
+      "sudo yum install -y epel-release",
+      "sudo yum install -y java-1.8.0-openjdk-devel",
+      "sudo yum update -y"
+    ]
+
+  }]
+}
